@@ -1,52 +1,38 @@
 package impromptu
 
 import scala.util.Try
-import scala.concurrent._
-
+import scala.concurrent._, ExecutionContext.Implicits.global
 import scala.language.implicitConversions
 
-class LazyFuture[+T](action: () => Future[T]) {
-  lazy val future: Future[T] = action()
-}
-
-abstract class Env[+Before] {
-  def execState: Task.ExecState
-  def name: String
-  def get[Return](task: Task[Return, _]): Return
-}
-
-object Task {
-  def apply[Return](action: => Return): Task[Return, _] =
-    new Task[Return, Nothing](Right(Seq()), env => action)
+object Async {
+  def apply[Return](action: => Return): Async[Return, _] =
+    new Async[Return, Nothing](Seq(), env => action)
   
-  def requiring[Before <: Task[_, _]](dependencies: Dependency[Before]*) =
-    new Prerequisites[Before](dependencies.map(_.task))
-
-  def listen[Before <: Task[_, _], Return](dependency: Dependency[Before])(action: Env[Before] => Return) =
-    new Task[Return, Before](Right(Seq()), action)
+  def post[Before <: Async[_, _]](deps: Dependency[Before]*) =
+    new Dependencies[Before](deps.map(_.async))
 
   object Dependency {
-    implicit def autoWrap(task: Task[_, _]): Dependency[task.type] = new Dependency(task)
+    implicit def autoWrap(async: Async[_, _]): Dependency[async.type] = new Dependency(async)
   }
   
-  class Dependency[-D <: Task[_, _]](val task: Task[_, _])
+  class Dependency[-A <: Async[_, _]](val async: Async[_, _])
 
-  class ExecState() {
-    @volatile private var futures: Map[Task[_, _], LazyFuture[Any]] = Map()
-    @volatile private var refCounts: Map[Task[_, _], Int] = Map()
-
-    private[impromptu] def future[Return](task: Task[Return, _]): Option[LazyFuture[Return]] =
-      synchronized { futures.get(task).map(_.asInstanceOf[LazyFuture[Return]]) }
-
+  class Dependencies[Before](asyncs: Seq[Async[_, _]]) {
+    def apply[Return](action: Env[Before] => Return): Async[Return, Before] =
+      new Async[Return, Before](asyncs, action)
   }
+
+  case class Env[+Before](values: Map[Async[_, _], Future[_]])
 }
 
-class Task[+Return, Before](val dependencies: Either[Task[_, _], Seq[Task[_, _]]], val action: Env[Before] => Return) {
-  def apply()(implicit env: Env[this.type]): Return = env.get(this)
+class Async[+Return, Before](val deps: Seq[Async[_, _]], val action: Async.Env[Before] => Return) {
+  def apply()(implicit env: Async.Env[this.type]): Return = env.values(this).value.get.get.asInstanceOf[Return]
+
+  lazy val future: Future[Return] = {
+    val results: Map[Async[_, _], Future[_]] = deps.map { d => d -> d.future }.toMap
+    Future.sequence(results.map(_._2)).map { _ => action(Async.Env(results)) }
+  }
+
+  def await(): Return = Await.result(future, duration.Duration.Inf)
 }
 
-
-class Prerequisites[Before](tasks: Seq[Task[_, _]]) {
-  def apply[Return](action: Env[Before] => Return): Task[Return, Before] =
-    new Task[Return, Before](Right(tasks), action)
-}

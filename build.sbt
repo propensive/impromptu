@@ -6,6 +6,7 @@ lazy val core = project
   .settings(buildSettings: _*)
   .settings(publishSettings: _*)
   .settings(scalaMacroDependencies: _*)
+  .settings(libraryDependencies += "com.propensive" %% "totalitarian" % "0.1.0")
   .settings(moduleName := "impromptu")
 
 lazy val examples = project
