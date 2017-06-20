@@ -8,25 +8,19 @@ object Async {
   def apply[Return](action: => Return): Async[Return, _] =
     new Async[Return, Nothing](Seq(), env => action)
   
-  def post[Before <: Async[_, _]](deps: Dependency[Before]*) =
-    new Dependencies[Before](deps.map(_.async))
+  def post[Before <: Async[_, _], Return](deps: Dependency[Before]*)(
+      action: Env[Before] => Return): Async[Return, Before] =
+    new Async[Return, Before](deps.map(_.async), action)
 
-  object Dependency {
-    implicit def autoWrap(async: Async[_, _]): Dependency[async.type] = new Dependency(async)
-  }
+  implicit def autoWrap(async: Async[_, _]): Dependency[async.type] = Dependency(async)
   
-  class Dependency[-A <: Async[_, _]](val async: Async[_, _])
-
-  class Dependencies[Before](asyncs: Seq[Async[_, _]]) {
-    def apply[Return](action: Env[Before] => Return): Async[Return, Before] =
-      new Async[Return, Before](asyncs, action)
-  }
-
+  case class Dependency[-A <: Async[_, _]](async: Async[_, _])
   case class Env[+Before](values: Map[Async[_, _], Future[_]])
 }
 
 class Async[+Return, Before](val deps: Seq[Async[_, _]], val action: Async.Env[Before] => Return) {
-  def apply()(implicit env: Async.Env[this.type]): Return = env.values(this).value.get.get.asInstanceOf[Return]
+  def apply()(implicit env: Async.Env[this.type]): Return =
+    env.values(this).value.get.get.asInstanceOf[Return]
 
   lazy val future: Future[Return] = {
     val results: Map[Async[_, _], Future[_]] = deps.map { d => d -> d.future }.toMap
@@ -35,4 +29,3 @@ class Async[+Return, Before](val deps: Seq[Async[_, _]], val action: Async.Env[B
 
   def await(): Return = Await.result(future, duration.Duration.Inf)
 }
-
