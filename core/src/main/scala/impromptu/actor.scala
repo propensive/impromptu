@@ -5,12 +5,12 @@ import scala.concurrent._, ExecutionContext.Implicits.global
 import language.implicitConversions
 
 object Actor {
-  def apply[Accept, Return](action: Env[Actor[_, _, _]] => Handler[Accept, Return]): Actor[Return, Accept, Actor[_, _, _]] =
-    new Actor[Return, Accept, Actor[_, _, _]](Seq(), action)
+  def apply[Accept, Return, AcceptReturn](action: Env[Actor[_, _, _]] => Handler[Accept, Return, AcceptReturn]): Actor[AcceptReturn, Accept, Actor[_, _, _]] =
+    new Actor[AcceptReturn, Accept, Actor[_, _, _]](Seq(), action)
 
-  def listensTo[Before <: Actor[_, _, _], Accept, Return](deps: Dependency[Before]*)(
-      action: Env[Before] => Handler[Accept, Return]): Actor[Return, Accept, Before] =
-    new Actor[Return, Accept, Before](deps.map(_.actor), action)
+  def listensTo[Before <: Actor[_, _, _], Accept, Return, AcceptReturn](deps: Dependency[Before]*)(
+      action: Env[Before] => Handler[Accept, Return, AcceptReturn]): Actor[AcceptReturn, Accept, Before] =
+    new Actor[AcceptReturn, Accept, Before](deps.map(_.actor), action)
 
   implicit def autoWrap(actor: Actor[_, _, _]): Dependency[actor.type] = Dependency(actor)
 
@@ -20,23 +20,26 @@ object Actor {
 }
 
 object handle {
-  def apply[Before, Accept, Return](action: Case[Accept, Return]*)(implicit env: Actor.Env[_ >: Before]): Handler[Accept, Return] =
+  def apply[Before, Accept, Return, AcceptReturn](action: Case[Accept, Return, AcceptReturn]*)(implicit env: Actor.Env[_ >: Before]): Handler[Accept, Return, AcceptReturn] =
     Handler(action.map(_.fn))
 }
 
-case class Handler[-Accept, +Return](fns: Seq[Accept => Return])
+case class Handler[-Accept, +Return, -AcceptReturn](fns: Seq[Accept => Return])
 
-class Actor[+Return, Accept, Before] private (val deps: Seq[Actor[_, _, _]], val action: Actor.Env[Before] => Handler[Accept, Return]) {
+case class Cmp[In, -Out]()
+
+class Actor[AcceptReturn, Accept, Before] private (val deps: Seq[Actor[_, _, _]], val action: Actor.Env[Before] => Handler[Accept, _, AcceptReturn]) {
   def send[Msg](msg: Msg)(implicit env: Actor.Env[this.type], ev: Accept <:< Msg): Unit = ???
+  def request[Msg](msg: Msg)(implicit env: Actor.Env[this.type], ev: Accept <:< Msg, ev2: AcceptReturn <:< Cmp[Msg, Accept]): Unit = ???
   def seed[Msg](msg: Msg)(implicit ev: Accept <:< Msg) = ???
 }
 
-case class Case[-Type, +Return](fn: Type => Return)
+case class Case[-Type, +Return, -TypeReturn](fn: Type => Return)
 
 object on {
   def apply[Type] = Apply[Type]()
   case class Apply[Type]() {
-    def apply[Return](action: Type => Return): Case[Type, Return] = Case(action)
+    def apply[Return](action: Type => Return): Case[Type, Return, Cmp[Type, Return]] = Case(action)
   }
 }
 
@@ -44,9 +47,11 @@ object Test {
 
   lazy val ping = Actor.listensTo(pong) { implicit env =>
     pong.send("ping")
-    pong.send(42)
+    pong.request(42)
     handle(
-      on[String] { s => println("Hello") },
+      on[String] { s =>
+        println("Hello")
+      },
       on[Int] { i => i + 1 }
     )
   }
@@ -54,8 +59,10 @@ object Test {
   lazy val pong = Actor { implicit env =>
     handle(
       on[String] { s => "pong" },
-      on[Int] { i => i + 1 }
+      on[Int] { i => 42 }
     )
   }
+
+  ping.seed(1)
 
 }
