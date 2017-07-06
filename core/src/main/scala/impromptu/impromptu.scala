@@ -1,7 +1,7 @@
 package impromptu
 
 import scala.util.Try
-import scala.concurrent._, ExecutionContext.Implicits.global
+import scala.concurrent._
 import scala.language.implicitConversions
 
 object Async {
@@ -18,14 +18,15 @@ object Async {
   final case class Env[+Before] private (values: Map[Async[_, _], Future[_]])
 }
 
-class Async[+Return, Before] private (val deps: Seq[Async[_, _]], val action: Async.Env[Before] => Return) {
+class Async[+Return, Before] private (val deps: Seq[Async[_, _]],
+    val action: Async.Env[Before] => Return) {
+  
   def apply()(implicit env: Async.Env[this.type]): Return =
     env.values(this).value.get.get.asInstanceOf[Return]
 
-  lazy val future: Future[Return] = {
-    val results: Map[Async[_, _], Future[_]] = deps.map { d => d -> d.future }.toMap
-    Future.sequence(results.map(_._2)).map { _ => action(Async.Env(results)) }
-  }
+  lazy val future: Future[Return] =
+    Future.sequence(deps.map { d => d -> d.future }).map { _ => action(Async.Env(results.toMap)) }
 
   def await(): Return = Await.result(future, duration.Duration.Inf)
 }
+
