@@ -3,66 +3,79 @@ package impromptu
 import scala.util.Try
 import scala.concurrent._, ExecutionContext.Implicits.global
 import language.implicitConversions
+import scala.reflect.runtime.universe.TypeTag
+import annotation.unchecked.{uncheckedVariance => uv}
+
+case class TypeIndex[T](tag: TypeTag[T]) {
+  override def equals(that: Any): Boolean = that match {
+    case that: TypeIndex[_] => tag.tpe =:= that.tag.tpe
+    case _ => false
+  }
+  override def hashCode: Int = tag.tpe.hashCode
+}
 
 object Actor {
-  def apply[Accept, Return, AcceptReturn](action: Env[Actor[_, _, _]] => Handler[Accept, Return, AcceptReturn]): Actor[AcceptReturn, Accept, Actor[_, _, _]] =
-    new Actor[AcceptReturn, Accept, Actor[_, _, _]](Seq(), action)
-
-  def listensTo[Before <: Actor[_, _, _], Accept, Return, AcceptReturn](deps: Dependency[Before]*)(
-      action: Env[Before] => Handler[Accept, Return, AcceptReturn]): Actor[AcceptReturn, Accept, Before] =
-    new Actor[AcceptReturn, Accept, Before](deps.map(_.actor), action)
-
-  implicit def autoWrap(actor: Actor[_, _, _]): Dependency[actor.type] = Dependency(actor)
-
-  final case class Dependency[-A <: Actor[_, _, _]] private (actor: Actor[_, _, _])
-  final case class Env[+Before] private (values: Map[Actor[_, _, _], Future[_]]) {
-  }
+  def apply[Accept, State](init: State)(action: State => Handler[Accept, State]): Actor[State, Accept] =
+    new Actor[State, Accept](init, action)
 }
 
 object handle {
-  def apply[Before, Accept, Return, AcceptReturn](action: Case[Accept, Return, AcceptReturn]*)(implicit env: Actor.Env[_ >: Before]): Handler[Accept, Return, AcceptReturn] =
-    Handler(action.map(_.fn))
+  def apply[Accept, State](cases: Case[Accept, State]*): Handler[Accept, State] =
+    Handler(cases.map { c => c.index -> c.fn }.toMap)
 }
 
-case class Handler[-Accept, +Return, -AcceptReturn](fns: Seq[Accept => Return])
-
-case class Cmp[In, -Out]()
-
-class Actor[AcceptReturn, Accept, Before] private (val deps: Seq[Actor[_, _, _]], val action: Actor.Env[Before] => Handler[Accept, _, AcceptReturn]) {
-  def send[Msg](msg: Msg)(implicit env: Actor.Env[this.type], ev: Accept <:< Msg): Unit = ???
-  def request[Msg](msg: Msg)(implicit env: Actor.Env[this.type], ev: Accept <:< Msg, ev2: AcceptReturn <:< Cmp[Msg, Accept]): Unit = ???
-  def seed[Msg](msg: Msg)(implicit ev: Accept <:< Msg) = ???
+case class Handler[-Accept, +State](fns: Map[TypeIndex[_], Accept => State]) {
+  def handle[Msg: TypeTag](msg: Msg): State =
+    fns(TypeIndex(implicitly[TypeTag[Msg]])).asInstanceOf[Msg => State](msg)
 }
 
-case class Case[-Type, +Return, -TypeReturn](fn: Type => Return)
+class Actor[State, Accept] private (val state: State, val handler: State => Handler[Accept, State]) {
+  private[this] var currentFuture = Future(state)
+  def send[Msg: TypeTag](msg: Msg)(implicit ev: Accept <:< Msg): Unit = synchronized {
+    currentFuture = currentFuture.flatMap { oldState =>
+      Future(handler(oldState).handle(msg))
+    }
+  }
+}
+
+case class Case[-Type, +State](index: TypeIndex[Type @uv], fn: Type => State)
 
 object on {
   def apply[Type] = Apply[Type]()
   case class Apply[Type]() {
-    def apply[Return](action: Type => Return): Case[Type, Return, Cmp[Type, Return]] = Case(action)
+    def apply[State](action: Type => State)(implicit tag: TypeTag[Type]): Case[Type, State] =
+      Case(TypeIndex[Type](tag), action)
   }
 }
 
 object Test {
 
-  lazy val ping = Actor.listensTo(pong) { implicit env =>
-    pong.send("ping")
-    pong.request(42)
+  case class Ping()
+  case class Pong()
+
+  lazy val ping: Actor[Int, Ping] = Actor(0) { count =>
     handle(
-      on[String] { s =>
-        println("Hello")
-      },
-      on[Int] { i => i + 1 }
+      on[Ping] { case Ping() =>
+        if(count%100 == 0) logger.send(s"Counted $count")
+        pong.send(Pong())
+        count + 1
+      }
     )
   }
-  
-  lazy val pong = Actor { implicit env =>
+ 
+  lazy val pong = Actor(Set[String]()) { entries =>
     handle(
-      on[String] { s => "pong" },
-      on[Int] { i => 42 }
+      on[Pong] { i =>
+        ping.send(Ping())
+        entries
+      }
     )
   }
 
-  ping.seed(1)
+  lazy val logger = Actor(()) { _ =>
+    handle(
+      on[String] { msg => println(msg) }
+    )
+  }
 
 }
