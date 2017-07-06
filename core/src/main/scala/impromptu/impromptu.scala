@@ -5,11 +5,11 @@ import scala.concurrent._
 import scala.language.implicitConversions
 
 object Async {
-  def apply[Return](action: => Return): Async[Return, _] =
+  def apply[Return](action: => Return)(implicit execCtx: ExecutionContext): Async[Return, _] =
     new Async[Return, Nothing](Seq(), env => action)
   
   def after[Before <: Async[_, _], Return](deps: Dependency[Before]*)(
-      action: Env[Before] => Return): Async[Return, Before] =
+      action: Env[Before] => Return)(implicit execCtx: ExecutionContext): Async[Return, Before] =
     new Async[Return, Before](deps.map(_.async), action)
 
   implicit def autoWrap(async: Async[_, _]): Dependency[async.type] = Dependency(async)
@@ -19,13 +19,15 @@ object Async {
 }
 
 class Async[+Return, Before] private (val deps: Seq[Async[_, _]],
-    val action: Async.Env[Before] => Return) {
+    val action: Async.Env[Before] => Return)(implicit execCtx: ExecutionContext) {
   
   def apply()(implicit env: Async.Env[this.type]): Return =
     env.values(this).value.get.get.asInstanceOf[Return]
 
-  lazy val future: Future[Return] =
-    Future.sequence(deps.map { d => d -> d.future }).map { _ => action(Async.Env(results.toMap)) }
+  lazy val future: Future[Return] = {
+    val results: Seq[(Async[_, _], Future[_])] = deps.map { d => (d, d.future) }
+    Future.sequence(results.map(_._2)).map { _ => action(Async.Env(results.toMap)) }
+  }
 
   def await(): Return = Await.result(future, duration.Duration.Inf)
 }
