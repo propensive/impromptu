@@ -9,21 +9,13 @@ lazy val core = project
   .settings(libraryDependencies += "com.propensive" %% "totalitarian" % "0.1.0")
   .settings(moduleName := "impromptu")
 
-lazy val examples = project
-  .in(file("examples"))
-  .settings(buildSettings: _*)
-  .settings(publishSettings: _*)
-  .settings(moduleName := "impromptu-examples")
-  .settings(quasiQuotesDependencies)
-  .dependsOn(core)
-
 lazy val tests = project
   .in(file("tests"))
   .settings(buildSettings: _*)
   .settings(noPublishSettings: _*)
   .settings(moduleName := "impromptu-tests")
   .settings(quasiQuotesDependencies)
-  .dependsOn(examples)
+  .dependsOn(core)
 
 lazy val buildSettings = Seq(
   organization := "com.propensive",
