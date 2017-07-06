@@ -15,8 +15,9 @@
 package impromptu.tests
 
 import impromptu._
+import scala.concurrent.ExecutionContext.Implicits.global
 
-object Test {
+object Test extends App {
 
   case class Ping()
   case class Pong()
@@ -25,7 +26,7 @@ object Test {
     handle(
       on[Ping] { case Ping() =>
         if(count%1000 == 0) logger.send(s"Counted $count")
-        pong.send(Pong())
+        if(count < 100000) pong.send(Pong())
         count + 1
       }
     )
@@ -45,5 +46,7 @@ object Test {
       on[String] { msg => println(msg) }
     )
   }
+
+  ping.send(Ping())
 
 }
