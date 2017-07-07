@@ -68,7 +68,11 @@ object Async extends Async_1 {
 
   /** special-case handler when Async value returns a [[Future]]
     */
-  final implicit def doNotWrap[T]: AsFuture[Future[T], T] = identity
+  final implicit def doNotWrapFuture[T]: AsFuture[Future[T], T] = identity
+  
+  /** special-case handler when Async value returns another [[Async]]
+    */
+  final implicit def doNotWrapAsync[T]: AsFuture[Async[_, _, T], T] = _.future
 
   /** the single [[Env]] instance which will work for all cases
     */
