@@ -17,7 +17,25 @@ package impromptu.tests
 import impromptu._
 import scala.concurrent.ExecutionContext.Implicits.global
 
-object Test extends App {
+object AsyncTest extends App {
+  import scala.io._
+
+  val inFile = Async(StdIn.readLine("Filename: "))
+  val search = Async.after(inFile) { implicit env =>
+    StdIn.readLine("Search: ")
+  }
+  val source = Async.after(inFile) { implicit env =>
+    Thread.sleep(4000)
+    Source.fromFile(inFile()).getLines
+  }
+  val result = Async.after(search, source) { implicit env =>
+    source().contains(search())
+  }
+
+  println(result.await())
+}
+
+object ActorsTest extends App {
 
   case class Ping()
   case class Pong()

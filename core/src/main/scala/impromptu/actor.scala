@@ -35,18 +35,18 @@ object `package` {
  
   /** constructs an intermediate [[Apply]] factory object for defining [[Case]]s
     *
-    * @tparam Msg  the message type to handle
+    * @tparam Message  the message type to handle
     * @return a new [[Apply]] instance for constructing a new [[Case]]
     */
-  def on[Msg] = Apply[Msg]()
+  def on[Message] = Apply[Message]()
   
   /** intermediate factory object for constructing new [[Case]]s for a particular message type
     *
-    * @tparam Msg  the fixed message type for which to construct a new [[Case]]
+    * @tparam Message  the fixed message type for which to construct a new [[Case]]
     */
-  case class Apply[Msg] private () {
-    def apply[State](action: Msg => State)(implicit tag: TypeTag[Msg]): Actor.Case[Msg, State] =
-      Actor.Case(Actor.TypeIndex[Msg](tag), action)
+  final case class Apply[Message] private () {
+    def apply[State](action: Message => State)(implicit tag: TypeTag[Message]):
+        Actor.Case[Message, State] = Actor.Case(Actor.TypeIndex[Message](tag), action)
   }
 }
 
@@ -72,8 +72,15 @@ object Actor {
     * @tparam State   the type of the [[Actor]]'s state
     */
   final case class Handler[-Accept, +State] private (fns: Map[TypeIndex[_], Accept => State]) {
-    def handle[Msg: TypeTag](msg: Msg): State =
-      fns(TypeIndex(implicitly[TypeTag[Msg]])).asInstanceOf[Msg => State](msg)
+    
+    /** handles the message according to the case for that message type
+      *
+      * @param message   the message value to be handled
+      * @tparam Message  the type of the message to be handled
+      * @return the state of the actor after message was handled
+      */
+    def handle[Message: TypeTag](message: Message): State =
+      fns(TypeIndex(implicitly[TypeTag[Message]])).asInstanceOf[Message => State](message)
   }
 
   /** an index for [[TypeTag]]s which allows them to be looked up in a [[Map]]
@@ -86,16 +93,18 @@ object Actor {
       case that: TypeIndex[_] => tag.tpe =:= that.tag.tpe
       case _ => false
     }
+
     override def hashCode: Int = tag.tpe.hashCode
   }
 
   /** one case, corresponding to one type, to be matched in a [[Handler]]
     *
-    * @tparam Msg    the type of message being handled by this [[Case]]
-    * @tparam State  the return type from this case, corresponding to the type of the enclosing
-    *                [[Actor]]'s state
+    * @tparam Message    the type of message being handled by this [[Case]]
+    * @tparam State      the return type from this case, corresponding to the type of the enclosing
+    *                    [[Actor]]'s state
     */
-  case class Case[-Msg, +State] private (index: TypeIndex[Msg @uv], fn: Msg => State)
+  final case class Case[-Message, +State] private (index: TypeIndex[Message @uv],
+                                                   fn: Message => State)
 }
 
 /** an actor
@@ -106,25 +115,25 @@ object Actor {
   * @tparam State   the type of the actor's state
   * @tparam Accept  the intersection type of the messages the actor can receive
   */
-class Actor[State, Accept] private (val state: State,
+final class Actor[State, Accept] private (val state: State,
                                     val handler: State => Actor.Handler[Accept, State])(implicit
                                     execCtx: ExecutionContext) {
   private[this] var currentFuture = Future(state)
 
   /** type alias for providing more appropriate error messages */
-  @implicitNotFound("this actor cannot accept messages of type ${Msg}")
-  type In[Msg, Accept] = Accept <:< Msg
+  @implicitNotFound("this actor cannot accept messages of type ${Message}")
+  type In[Message, Accept] = Accept <:< Message
 
   /** sends a message to this actor
     *
-    * @param msg  the message to send
-    * @param ev   evidence that the actor can receive messages of this type
-    * @tparam Msg  the type of the message to send
+    * @param message  the message to send
+    * @param ev       evidence that the actor can receive messages of this type
+    * @tparam Message  the type of the message to send
     * @return a unit
     */
-  def send[Msg: TypeTag](msg: Msg)(implicit ev: Msg In Accept): Unit = synchronized {
+  def send[Message: TypeTag](message: Message)(implicit ev: Message In Accept): Unit = synchronized {
     currentFuture = currentFuture.flatMap { oldState =>
-      Future(handler(oldState).handle(msg))
+      Future(handler(oldState).handle(message))
     }
   }
 }
