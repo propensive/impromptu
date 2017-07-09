@@ -40,7 +40,7 @@ object ActorsTest extends App {
   case class Ping()
   case class Pong()
 
-  lazy val ping: Actor[Int, Ping] = Actor(0) { count =>
+  lazy val ping: Actor[Int, Key[Ping]] = Actor(0) { count =>
     handle(
       on[Ping] { case Ping() =>
         if(count%1000 == 0) logger.send(s"Counted $count")

@@ -30,7 +30,7 @@ object `package` {
     * @tparam State   the least-upper-bound return type of all the cases
     * @return a new [[Handler]]
     */
-  def handle[Accept, State](cases: Actor.Case[Accept, State]*): Actor.Handler[Accept, State] =
+  def handle[X, Accept, State](cases: Actor.Case[X, Accept, State]*): Actor.Handler[Accept, State] =
     Actor.Handler(cases.map { c => c.index -> c.fn }.toMap)
  
   /** constructs an intermediate [[Apply]] factory object for defining [[Case]]s
@@ -46,7 +46,7 @@ object `package` {
     */
   final case class Apply[Message] private () {
     def apply[State](action: Message => State)(implicit tag: TypeTag[Message]):
-        Actor.Case[Message, State] = Actor.Case(Actor.TypeIndex[Message](tag), action)
+        Actor.Case[Message, Key[Message], State] = Actor.Case(Actor.TypeIndex[Message](tag), action)
   }
 }
 
@@ -71,7 +71,7 @@ object Actor {
     * @tparam Accept  the intersection type of all the message types the [[Actor]] can accept
     * @tparam State   the type of the [[Actor]]'s state
     */
-  final case class Handler[-Accept, +State] private (fns: Map[TypeIndex[_], Accept => State]) {
+  final case class Handler[-Accept, +State] private (fns: Map[TypeIndex[_], Nothing => State]) {
     
     /** handles the message according to the case for that message type
       *
@@ -103,9 +103,11 @@ object Actor {
     * @tparam State      the return type from this case, corresponding to the type of the enclosing
     *                    [[Actor]]'s state
     */
-  final case class Case[-Message, +State] private (index: TypeIndex[Message @uv],
-                                                   fn: Message => State)
+  final case class Case[-Msg, -Message, +State] private (index: TypeIndex[Msg @uv],
+                                                   fn: Msg => State)
 }
+  
+sealed trait Key[T]
 
 /** an actor
   *
@@ -122,7 +124,7 @@ final class Actor[State, Accept] private (val state: State,
 
   /** type alias for providing more appropriate error messages */
   @implicitNotFound("this actor cannot accept messages of type ${Message}")
-  type In[Message, Accept] = Accept <:< Message
+  type In[Message, Accept] = Accept <:< Key[Message]
 
   /** sends a message to this actor
     *
