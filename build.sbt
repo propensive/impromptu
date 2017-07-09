@@ -20,9 +20,9 @@ lazy val buildSettings = Seq(
   organization := "com.propensive",
   scalaVersion := "2.12.1",
   name := "impromptu",
-  version := "1.0.0",
+  version := "1.1.0",
   scalacOptions ++= Seq("-deprecation", "-feature", "-Xexperimental", "-Ywarn-value-discard", "-Ywarn-dead-code", "-Ywarn-nullary-unit", "-Ywarn-numeric-widen", "-Ywarn-inaccessible", "-Ywarn-adapted-args"),
-  crossScalaVersions := Seq("2.10.6", "2.11.8", "2.12.1"),
+  crossScalaVersions := Seq("2.11.11", "2.12.2"),
   scmInfo := Some(ScmInfo(url("https://github.com/propensive/impromptu"),
     "scm:git:git@github.com:propensive/impromptu.git"))
 )
