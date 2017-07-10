@@ -6,7 +6,5 @@
 
 *Impromptu* makes it simple to write typesafe, asynchronous tasks.
 
-Please see the [Impromptu](http://impromptu.propensive.com/) website for more information.
-
-
+I am working on a website, which I hope to have ready within the next 2-3 days.
 

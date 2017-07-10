@@ -62,7 +62,7 @@ object Actor {
     * @tparam State   the type of the [[Actor]]'s state
     * @return a new [[Actor]], ready to start receiving messages
     */
-  def apply[Accept, State](init: State)(action: State => Handler[Accept, State])(implicit
+  def apply[State, Accept](init: State)(action: State => Handler[Accept, State])(implicit
                            execCtx: ExecutionContext): Actor[State, Accept] =
     new Actor[State, Accept](init, action)
   
