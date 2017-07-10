@@ -31,7 +31,7 @@ object `package` {
     * @return a new [[Handler]]
     */
   def handle[X, Accept, State](cases: Actor.Case[X, Accept, State]*): Actor.Handler[Accept, State] =
-    Actor.Handler(cases.map { c => c.index -> c.fn }.toMap)
+    Actor.Handler(cases.map { c => c.index -> c.action }.toMap)
  
   /** constructs an intermediate [[Apply]] factory object for defining [[Case]]s
     *
@@ -46,7 +46,8 @@ object `package` {
     */
   final case class Apply[Message] private () {
     def apply[State](action: Message => State)(implicit tag: TypeTag[Message]):
-        Actor.Case[Message, Key[Message], State] = Actor.Case(Actor.TypeIndex[Message](tag), action)
+        Actor.Case[Message, Actor.Key[Message], State] =
+      Actor.Case(Actor.TypeIndex[Message](tag), action)
   }
 }
 
@@ -65,13 +66,18 @@ object Actor {
                            execCtx: ExecutionContext): Actor[State, Accept] =
     new Actor[State, Accept](init, action)
   
+  /** a phantom type-wrapper for distinguishing types with a subtype relation when they are put
+    * into an intersection type
+    */
+  sealed trait Key[T]
+  
   /** represents the functions which operate on a number of different message types
     *
-    * @param fns  the functions 
+    * @param actions  the functions 
     * @tparam Accept  the intersection type of all the message types the [[Actor]] can accept
     * @tparam State   the type of the [[Actor]]'s state
     */
-  final case class Handler[-Accept, +State] private (fns: Map[TypeIndex[_], Nothing => State]) {
+  final case class Handler[-Accept, +State] private (actions: Map[TypeIndex[_], Nothing => State]) {
     
     /** handles the message according to the case for that message type
       *
@@ -80,7 +86,7 @@ object Actor {
       * @return the state of the actor after message was handled
       */
     def handle[Message: TypeTag](message: Message): State =
-      fns(TypeIndex(implicitly[TypeTag[Message]])).asInstanceOf[Message => State](message)
+      actions(TypeIndex(implicitly[TypeTag[Message]])).asInstanceOf[Message => State](message)
   }
 
   /** an index for [[TypeTag]]s which allows them to be looked up in a [[Map]]
@@ -104,10 +110,8 @@ object Actor {
     *                    [[Actor]]'s state
     */
   final case class Case[-Msg, -Message, +State] private (index: TypeIndex[Msg @uv],
-                                                   fn: Msg => State)
+                                                         action: Msg => State)
 }
-  
-sealed trait Key[T]
 
 /** an actor
   *
@@ -124,7 +128,7 @@ final class Actor[State, Accept] private (val state: State,
 
   /** type alias for providing more appropriate error messages */
   @implicitNotFound("this actor cannot accept messages of type ${Message}")
-  type In[Message, Accept] = Accept <:< Key[Message]
+  type In[Message, Accept] = Accept <:< Actor.Key[Message]
 
   /** sends a message to this actor
     *
