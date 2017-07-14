@@ -17,6 +17,7 @@ package impromptu
 import scala.util.Try
 import scala.concurrent._
 import scala.language.implicitConversions
+import scala.annotation.unchecked.{uncheckedVariance => uv}
 
 /** factory object for [[Async]] instances */
 object Async extends Async_1 {
@@ -95,7 +96,7 @@ trait Async_1 { this: Async.type =>
   */
 final class Async[+Return, Before, +Raw] private (val dependencies: Seq[Async[_, _, _]],
     val action: Async.Env[Before] => Return,
-    val asFuture: Async.AsFuture[Return @annotation.unchecked.uncheckedVariance, Raw @annotation.unchecked.uncheckedVariance])(implicit execCtx: ExecutionContext) {
+    val asFuture: Async.AsFuture[Return @uv, Raw @uv])(implicit execCtx: ExecutionContext) {
   
   /** returns the precomputed result of the previous dependent value, without blocking
     *
