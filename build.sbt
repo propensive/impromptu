@@ -14,6 +14,7 @@ lazy val tests = project
   .settings(noPublishSettings: _*)
   .settings(moduleName := "impromptu-tests")
   .settings(quasiQuotesDependencies)
+  .settings(unmanagedSettings)
   .dependsOn(core)
 
 lazy val buildSettings = Seq(
@@ -21,10 +22,22 @@ lazy val buildSettings = Seq(
   scalaVersion := "2.12.1",
   name := "impromptu",
   version := "1.2.0",
-  scalacOptions ++= Seq("-deprecation", "-feature", "-Xexperimental", "-Ywarn-value-discard", "-Ywarn-dead-code", "-Ywarn-nullary-unit", "-Ywarn-numeric-widen", "-Ywarn-inaccessible", "-Ywarn-adapted-args"),
+  scalacOptions ++= Seq(
+    "-deprecation",
+    "-feature",
+    "-Xexperimental",
+    "-Ywarn-value-discard",
+    "-Ywarn-dead-code",
+    "-Ywarn-nullary-unit",
+    "-Ywarn-numeric-widen",
+    "-Ywarn-inaccessible",
+    "-Ywarn-adapted-args"
+  ),
   crossScalaVersions := Seq("2.11.11", "2.12.2"),
-  scmInfo := Some(ScmInfo(url("https://github.com/propensive/impromptu"),
-    "scm:git:git@github.com:propensive/impromptu.git"))
+  scmInfo := Some(
+    ScmInfo(url("https://github.com/propensive/impromptu"),
+            "scm:git:git@github.com:propensive/impromptu.git")
+  )
 )
 
 lazy val publishSettings = Seq(
@@ -33,10 +46,12 @@ lazy val publishSettings = Seq(
   autoAPIMappings := true,
   publishMavenStyle := true,
   publishArtifact in Test := false,
-  pomIncludeRepository := { _ => false },
+  pomIncludeRepository := { _ =>
+    false
+  },
   publishTo := {
     val nexus = "https://oss.sonatype.org/"
-    if(isSnapshot.value)
+    if (isSnapshot.value)
       Some("snapshots" at nexus + "content/repositories/snapshots")
     else
       Some("releases" at nexus + "service/local/staging/deploy/maven2")
@@ -75,30 +90,45 @@ lazy val noPublishSettings = Seq(
 
 import java.io.File
 
-def crossVersionSharedSources()  = Seq(
- (unmanagedSourceDirectories in Compile) ++= { (unmanagedSourceDirectories in Compile ).value.map {
-     dir:File => new File(dir.getPath + "_" + scalaBinaryVersion.value)}}
+def crossVersionSharedSources() = Seq(
+  (unmanagedSourceDirectories in Compile) ++= {
+    (unmanagedSourceDirectories in Compile).value.map { dir: File =>
+      new File(dir.getPath + "_" + scalaBinaryVersion.value)
+    }
+  }
 )
 
 lazy val quasiQuotesDependencies: Seq[Setting[_]] =
   libraryDependencies ++= {
     CrossVersion.partialVersion(scalaVersion.value) match {
       case Some((2, scalaMajor)) if scalaMajor >= 11 => Seq()
-      case Some((2, 10)) => Seq(
-        compilerPlugin("org.scalamacros" % "paradise" % "2.1.0" cross CrossVersion.full),
-        "org.scalamacros" %% "quasiquotes" % "2.1.0" cross CrossVersion.binary
-      )
+      case Some((2, 10)) =>
+        Seq(
+          compilerPlugin("org.scalamacros" % "paradise" % "2.1.0" cross CrossVersion.full),
+          "org.scalamacros" %% "quasiquotes" % "2.1.0" cross CrossVersion.binary
+        )
     }
   }
+
+lazy val unmanagedSettings = unmanagedBase := (scalaVersion.value
+  .split("\\.")
+  .map(_.toInt)
+  .to[List] match {
+  case List(2, 12, _) => baseDirectory.value / "lib" / "2.12"
+  case List(2, 11, _) => baseDirectory.value / "lib" / "2.11"
+})
 
 lazy val scalaMacroDependencies: Seq[Setting[_]] = Seq(
   libraryDependencies += "org.typelevel" %% "macro-compat" % "1.1.1",
   libraryDependencies += "org.scala-lang" % "scala-reflect" % scalaVersion.value,
   libraryDependencies += "org.scala-lang" % "scala-compiler" % scalaVersion.value,
-  libraryDependencies += compilerPlugin("org.scalamacros" % "paradise" % "2.1.0" cross CrossVersion.full)
+  libraryDependencies += compilerPlugin(
+    "org.scalamacros" % "paradise" % "2.1.0" cross CrossVersion.full
+  )
 )
 
 credentials ++= (for {
   username <- Option(System.getenv().get("SONATYPE_USERNAME"))
   password <- Option(System.getenv().get("SONATYPE_PASSWORD"))
-} yield Credentials("Sonatype Nexus Repository Manager", "oss.sonatype.org", username, password)).toSeq
+} yield
+  Credentials("Sonatype Nexus Repository Manager", "oss.sonatype.org", username, password)).toSeq
