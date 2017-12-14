@@ -37,15 +37,19 @@ object AsyncTest extends App {
 
 object ActorsTest extends App {
 
+  val t0 = System.currentTimeMillis
+
   case class Ping()
   case class Pong()
 
   lazy val ping: Actor[Int, Actor.Key[Ping]] = Actor(0) { count =>
     handle(
-      on[Ping] { case Ping() =>
-        if(count%1000 == 0) logger.send(s"Counted $count")
-        if(count < 100000) pong.send(Pong())
-        count + 1
+      on[Ping] {
+        case Ping() =>
+          if (count % 1000 == 0) logger.send(s"Counted $count")
+          if (count < 1000000) pong.send(Pong())
+          else println("Total time: " + (System.currentTimeMillis - t0) / 1000.0)
+          count + 1
       }
     )
   }
@@ -61,7 +65,9 @@ object ActorsTest extends App {
 
   lazy val logger = Actor(()) { _ =>
     handle(
-      on[String] { msg => println(msg) }
+      on[String] { msg =>
+        println(msg)
+      }
     )
   }
 

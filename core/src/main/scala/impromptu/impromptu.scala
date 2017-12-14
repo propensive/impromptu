@@ -23,13 +23,15 @@ import scala.annotation.unchecked.{uncheckedVariance => uv}
 object Async extends Async_1 {
 
   /** creates a new [[Async]] instance */
-  def apply[Return, Raw](action: => Return)(implicit
-                         execCtx: ExecutionContext,
-                         asFuture: AsFuture[Return, Raw]): Async[Return, _, Raw] =
+  def apply[Return, Raw](action: => Return)(
+    implicit
+    execCtx: ExecutionContext,
+    asFuture: AsFuture[Return, Raw]
+  ): Async[Return, _, Raw] =
     new Async[Return, Async[_, _, _], Raw](Seq(), env => action, asFuture)
-  
+
   /** constructs a new asynchronous computation which should run after the specified prerequisites
-    * 
+    *
     * @param dependencies  the prerequisite dependencies of the computation
     * @param action        the computation to run
     * @param execCtx       the execution context in which to run the computation
@@ -37,11 +39,11 @@ object Async extends Async_1 {
     * @tparam Return  the type of the result of the computation
     * @return a newly-constructed, unevaluated [[Async]] instance
     */
-  def after[Before <: Async[_, _, _], Return, Raw](dependencies: Dependency[Before]*)(
-                                                   action: Env[Before] => Return)(implicit
-                                                   execCtx: ExecutionContext,
-                                                   asFuture: AsFuture[Return, Raw]):
-      Async[Return, Before, Raw] =
+  def after[Before <: Async[_, _, _], Return, Raw](
+    dependencies: Dependency[Before]*
+  )(action: Env[Before] => Return)(implicit
+                                   execCtx: ExecutionContext,
+                                   asFuture: AsFuture[Return, Raw]): Async[Return, Before, Raw] =
     new Async[Return, Before, Raw](dependencies.map(_.async), action, asFuture)
 
   /** automatically wraps any [[Async]] values in the contravariant [[Dependency]] type to ensure
@@ -49,8 +51,9 @@ object Async extends Async_1 {
     *
     * @param async  the [[Async]] value to wrap
     * @return the [[Async]] value wrapped as a [[Dependency]] */
-  implicit def autoWrap(async: Async[_, _, _]): Dependency[async.type] = Dependency(async)
-  
+  implicit def autoWrap(async: Async[_, _, _]): Dependency[async.type] =
+    Dependency(async)
+
   /** wrapper class for [[Async]] values when used in parameter positions where an intersection
     * type needs to be inferred
     *
@@ -70,7 +73,7 @@ object Async extends Async_1 {
   /** special-case handler when Async value returns a [[Future]]
     */
   final implicit def doNotWrapFuture[T]: AsFuture[Future[T], T] = identity
-  
+
   /** special-case handler when Async value returns another [[Async]]
     */
   final implicit def doNotWrapAsync[T]: AsFuture[Async[_, _, T], T] = _.future
@@ -87,17 +90,19 @@ trait Async_1 { this: Async.type =>
 }
 
 /** an asynchronously computed value, much like a lazy [[Future]]
-  * 
+  *
   * @param dependencies  the dependencies which must be computer prior to this [[Async]] value
   * @param action        the action which computes the value
   * @tparam Return  the type of the value to be computed
   * @tparam Before  an intersection type of the singleton types of all the dependencies of this
   *                 [[Async]] value
   */
-final class Async[+Return, Before, +Raw] private (val dependencies: Seq[Async[_, _, _]],
-    val action: Async.Env[Before] => Return,
-    val asFuture: Async.AsFuture[Return @uv, Raw @uv])(implicit execCtx: ExecutionContext) {
-  
+final class Async[+Return, Before, +Raw] private (
+  val dependencies: Seq[Async[_, _, _]],
+  val action: Async.Env[Before] => Return,
+  val asFuture: Async.AsFuture[Return @uv, Raw @uv]
+)(implicit execCtx: ExecutionContext) {
+
   /** returns the precomputed result of the previous dependent value, without blocking
     *
     * @param env  the implicit environment whose presence in-scope guarantees the value may be
@@ -108,7 +113,9 @@ final class Async[+Return, Before, +Raw] private (val dependencies: Seq[Async[_,
 
   /** the lazily-evaluated [[Future]] corresponding to this asynchronous value */
   lazy val future: Future[Raw] =
-    Future.sequence(dependencies.map(_.future)).flatMap { _ => asFuture.wrap(action(Async.AnyEnv)) }
+    Future.sequence(dependencies.map(_.future)).flatMap { _ =>
+      asFuture.wrap(action(Async.AnyEnv))
+    }
 
   /** returns the result from evaluating the future, blocking if necessary
     *
