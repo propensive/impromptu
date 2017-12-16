@@ -37,12 +37,13 @@ object Async extends Async_1 {
     * @tparam Return  the type of the result of the computation
     * @return a newly-constructed, unevaluated [[Async]] instance
     */
-  def after[Before <: Async[_, _, _], Return, Raw](dependencies: Dependency[Before]*)(
+  def after[Before <: Async[_, _, _], Return, Raw](d0: Dependency[Before],
+                                                   dependencies: Dependency[Before]*)(
                                                    action: Env[Before] => Return)(implicit
                                                    execCtx: ExecutionContext,
                                                    asFuture: AsFuture[Return, Raw]):
       Async[Return, Before, Raw] =
-    new Async[Return, Before, Raw](dependencies.map(_.async), action, asFuture)
+    new Async[Return, Before, Raw]((d0 +: dependencies).map(_.async), action, asFuture)
 
   /** automatically wraps any [[Async]] values in the contravariant [[Dependency]] type to ensure
     * that their type parameters infer to the intersection type
