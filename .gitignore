@@ -1,0 +1,10 @@
+target
+.jvm
+.js
+.native
+.idea
+/bin
+/pkg
+/lib
+/.bloop-config
+.*.swp

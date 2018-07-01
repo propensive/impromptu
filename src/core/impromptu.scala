@@ -1,17 +1,22 @@
-/* Impromptu, version 1.0.0. Copyright 2017 Jon Pretty, Propensive Ltd.
- *
- * The primary distribution site is: http://co.ntextu.al/
- *
- * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file
- * except in compliance with the License. You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software distributed under the
- * License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
- * either express or implied. See the License for the specific language governing permissions
- * and limitations under the License.
- */
+/*
+  
+  Impromptu, version 1.0.0. Copyright 2018 Jon Pretty, Propensive Ltd.
+
+  The primary distribution site is: https://propensive.com/
+
+  Licensed under the Apache License, Version 2.0 (the "License"); you may not use
+  this file except in compliance with the License. You may obtain a copy of the
+  License at
+  
+      http://www.apache.org/licenses/LICENSE-2.0
+ 
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+  WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+  License for the specific language governing permissions and limitations under
+  the License.
+
+*/
 package impromptu
 
 import scala.util.Try
@@ -21,6 +26,9 @@ import scala.annotation.unchecked.{uncheckedVariance => uv}
 
 /** factory object for [[Async]] instances */
 object Async extends Async_1 {
+
+  def sequence[Return](asyncs: List[Async[Return, _, Return]])(implicit execCtx: ExecutionContext) =
+    apply[Future[List[Return]], List[Return]](Future.sequence(asyncs.map(_.future)))
 
   /** creates a new [[Async]] instance */
   def apply[Return, Raw](action: => Return)(
@@ -111,6 +119,11 @@ final class Async[+Return, Before, +Raw] private (
     * @return the precomputed value from the earlier asynchronous computation
     */
   def apply()(implicit env: Async.Env[this.type]): Raw = future.value.get.get
+
+  def start(): Unit = {
+    future
+    ()
+  }
 
   /** the lazily-evaluated [[Future]] corresponding to this asynchronous value */
   lazy val future: Future[Raw] =
