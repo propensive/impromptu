@@ -19,9 +19,7 @@
 */
 package impromptu
 
-import scala.util.Try
 import scala.concurrent._
-import language.implicitConversions
 import language.experimental.macros
 import scala.annotation.unchecked.{uncheckedVariance => uv}
 import scala.annotation.implicitNotFound

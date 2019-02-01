@@ -19,10 +19,11 @@
 */
 package impromptu
 
-import scala.util.Try
 import scala.concurrent._
 import scala.language.implicitConversions
 import scala.annotation.unchecked.{uncheckedVariance => uv}
+
+import scala.util._
 
 /** factory object for [[Async]] instances */
 object Async extends Async_1 {
@@ -83,8 +84,13 @@ object Async extends Async_1 {
     */
   final implicit def doNotWrapFuture[T]: AsFuture[Future[T], T] = identity
 
+  /** special-case handler when Async value returns a [[Try]]
+    */
+  final implicit def doNotWrapTry[T]: AsFuture[Try[T], T] = Future.fromTry(_)
+
   /** special-case handler when Async value returns another [[Async]]
     */
+  
   final implicit def doNotWrapAsync[T]: AsFuture[Async[_, _, T], T] = _.future
 
   /** the single [[Env]] instance which will work for all cases
@@ -119,6 +125,11 @@ final class Async[+Return, Before, +Raw] private (
     * @return the precomputed value from the earlier asynchronous computation
     */
   def apply()(implicit env: Async.Env[this.type]): Raw = future.value.get.get
+
+  def started(): Async[Return, Before, Raw] = {
+    start()
+    this
+  }
 
   def start(): Unit = {
     future
